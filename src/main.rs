@@ -12,8 +12,10 @@ mod winlogon_manager {
     impl WinLogonManager {
         pub fn add_to_winlogon(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
             let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-            let winlogon_key = hklm.open_subkey_with_flags("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", KEY_ALL_ACCESS)?;
-
+            let (winlogon_key, _disposition) = hklm.create_subkey_with_flags(
+                "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                KEY_ALL_ACCESS,
+            )?;
             let existing_value: String = winlogon_key.get_value("Userinit")?;
             let new_value = format!("{},{}", existing_value, file_path);
             winlogon_key.set_value("Userinit", &new_value)?;
@@ -23,14 +25,15 @@ mod winlogon_manager {
 
         pub fn delete_from_winlogon(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
             let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-            let winlogon_key = hklm.open_subkey_with_flags("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", KEY_ALL_ACCESS)?;
-
+            let (winlogon_key, _disposition) = hklm.create_subkey_with_flags(
+                "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                KEY_ALL_ACCESS,
+            )?;
             let existing_value: String = winlogon_key.get_value("Userinit")?;
             println!("Current Userinit value: {}", existing_value);
 
             let mut values: Vec<&str> = existing_value.split(',').collect();
             let initial_length = values.len();
-
             values.retain(|&s| s.trim() != file_path);
 
             if values.len() == initial_length {
@@ -54,10 +57,11 @@ mod winlogon_manager {
 
 mod utils {
     use super::*;
+    use std::ptr;
 
     pub fn is_elevated() -> bool {
         unsafe {
-            let mut token: winapi::um::winnt::HANDLE = std::ptr::null_mut();
+            let mut token: winapi::um::winnt::HANDLE = ptr::null_mut();
             if winapi::um::processthreadsapi::OpenProcessToken(
                 winapi::um::processthreadsapi::GetCurrentProcess(),
                 winapi::um::winnt::TOKEN_QUERY,
@@ -107,11 +111,11 @@ mod utils {
                     .arg("0")
                     .output()
                     .expect("Failed to execute reboot command");
-            },
+            }
             "2" => {
                 println!("Exiting the program. Press any key to close.");
                 io::stdin().read_line(&mut String::new()).expect("Failed to read line");
-            },
+            }
             _ => {
                 println!("Invalid option. Exiting the program. Press any key to close.");
                 io::stdin().read_line(&mut String::new()).expect("Failed to read line");
@@ -149,7 +153,7 @@ fn main() {
                     Err(e) => println!("Failed to add the file to WinLogon. Error: {:?}", e),
                 }
                 utils::post_action_menu();
-            },
+            }
             "2" => {
                 println!("Please enter the path to the file to delete from WinLogon:");
                 let mut file_path = String::new();
@@ -161,12 +165,12 @@ fn main() {
                     Err(e) => println!("Failed to delete the file from WinLogon. Error: {:?}", e),
                 }
                 utils::press_any_key_to_close();
-            },
+            }
             "3" => {
                 println!("Exiting the program. Press any key to close.");
                 io::stdin().read_line(&mut String::new()).expect("Failed to read line");
                 break;
-            },
+            }
             _ => println!("Invalid option. Please choose again."),
         }
     }
